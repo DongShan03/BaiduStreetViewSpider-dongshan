@@ -1,11 +1,10 @@
 import re, os
 import json
 import requests
-import time, glob
+import glob
 from concurrent.futures import ThreadPoolExecutor
 import csv
 import random
-import traceback
 
 
 class BaiduStreetDownload():
@@ -17,10 +16,7 @@ class BaiduStreetDownload():
         self.dir = r'images'
         self.filenames_exist = glob.glob1(os.path.join(self.root, self.dir), "*.png")
         self.num = 200
-
-        self.proxy_url = "https://proxy.qg.net/allocate?Key=青果代理%s"%(self.num)
-        self.proxy_resp = requests.get(self.proxy_url).json()["Data"]
-        self.proxyAddr_list = [self.proxy_resp[i]["host"] for i in range(len(self.proxy_resp))]
+        self.get_proxy_list()
 
         self.session = requests.Session()
         self.session.proxies = random.choice(self.proxyAddr_list)
@@ -30,13 +26,19 @@ class BaiduStreetDownload():
         # 记录 header
         self.header = self.data[0]
         # 去掉 header
-        self.data = self.data[5000:]
+        self.data = self.data[1:]
         # 记录爬取失败的图片
         self.error_img = []
         # 记录没有svid的位置
         self.svid_none = []
         self.pitchs = '0'
         self.count = 1
+
+    def get_proxy_list(self):
+        self.proxy_url = "https://proxy.qg.net/allocate?Key=OSVD9AHC&Num%s"%(self.num)
+        self.proxy_resp = requests.get(self.proxy_url).json()["Data"]
+        self.proxyAddr_list = [self.proxy_resp[i]["host"] for i in range(len(self.proxy_resp))]
+
 
     # read csv
     def write_csv(self, filepath, data, head=None):
@@ -129,6 +131,8 @@ class BaiduStreetDownload():
 
     def downloadpic(self, i):
         self.count += 1
+        if self.count % 1000 == 0:
+            self.get_proxy_list()
         print('Processing No. {} point...'.format(i + 1))
         # gcj_x, gcj_y, wgs_x, wgs_y = data[i][0], data[i][1], data[i][2], data[i][3]
         wgs_x, wgs_y = self.data[i][15], self.data[i][16]
