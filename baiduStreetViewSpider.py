@@ -35,7 +35,7 @@ class BaiduStreetDownload():
         self.count = 1
 
     def get_proxy_list(self):
-        self.proxy_url = "https://proxy.qg.net/allocate?Key=OSVD9AHC&Num%s"%(self.num)
+        self.proxy_url = "https://proxy.qg.net/allocate?Key=青果代理&Num%s"%(self.num)
         self.proxy_resp = requests.get(self.proxy_url).json()["Data"]
         self.proxyAddr_list = [self.proxy_resp[i]["host"] for i in range(len(self.proxy_resp))]
 
