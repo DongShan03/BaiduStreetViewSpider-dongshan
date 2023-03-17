@@ -1,0 +1,3 @@
+"highway" = ' ' OR "highway" = 'cycleway' OR "highway" = 'footway' OR "highway" = 'track' OR "highway" = 'tertiary_link' OR "highway" = 'path' OR "highway" = 'platform' OR "highway" = 'services' OR "highway" = 'service' OR "highway" = 'steps' OR "highway" = 'unclassified' OR "highway" = 'pedestrian' OR "highway" = 'living_street' OR "highway" = 'crossing' OR "highway" = 'proposed' OR "highway" = 'residential' OR "highway" = 'road' OR "highway" = 'tertiary'
+
+OSVD9AHC&Num  青果key值
