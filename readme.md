@@ -11,3 +11,6 @@
 ``` python
   pip install requests
 ```
+## 使用方法
+    Spider.py用于爬取百度街景图
+    segment.py用于图像语义分割

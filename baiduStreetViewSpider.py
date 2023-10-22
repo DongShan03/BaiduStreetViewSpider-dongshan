@@ -1,32 +1,38 @@
 import re, os
-import json
+import json, pandas
 import requests
-import glob
-from concurrent.futures import ThreadPoolExecutor
+import glob, time
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 import csv
 import random
 
 
+def read_csv(filepath):
+    if os.path.exists(filepath):
+        return pandas.read_csv(filepath, encoding='utf-8')
+    else:
+        print('filepath is wrong：{}'.format(filepath))
+        return pandas.DataFrame()
+
 class BaiduStreetDownload():
 
-    def __init__(self):
+    def __init__(self, begin, end):
         self.root = r'.\dir'
-        self.read_fn = r'all_wuhan_point.csv'
         self.error_fn = r'error_road_intersection.csv'
-        self.dir = r'images'
-        self.filenames_exist = glob.glob1(os.path.join(self.root, self.dir), "*.png")
-        self.num = 200
+        self.dir = r'.\images'
+        self.num = 150
+        self.key = "OSVD9AHC"
         self.get_proxy_list()
+        self.begin = begin
 
         self.session = requests.Session()
         self.session.proxies = random.choice(self.proxyAddr_list)
 
-        # 读取 csv 文件
-        self.data = self.read_csv(os.path.join(self.root, self.read_fn))
+
         # 记录 header
-        self.header = self.data[0]
+        self.header = global_data.iloc[begin:end, 0]
         # 去掉 header
-        self.data = self.data[1:]
+        self.data = global_data.iloc[begin:end, 1:]
         # 记录爬取失败的图片
         self.error_img = []
         # 记录没有svid的位置
@@ -35,8 +41,10 @@ class BaiduStreetDownload():
         self.count = 1
 
     def get_proxy_list(self):
-        self.proxy_url = "https://proxy.qg.net/allocate?Key=青果代理&Num%s"%(self.num)
+        self.proxy_url = "https://proxy.qg.net/allocate?Key=%s&Num=%s"%(self.key, self.num)
         self.proxy_resp = requests.get(self.proxy_url).json()["Data"]
+        # self.proxy_resp = requests.get(self.proxy_url).json()
+        # print(self.proxy_resp)
         self.proxyAddr_list = [self.proxy_resp[i]["host"] for i in range(len(self.proxy_resp))]
 
 
@@ -50,17 +58,7 @@ class BaiduStreetDownload():
                 writer.writerow(i)
 
     # write csv
-    def read_csv(self, filepath):
-        data = []
-        if os.path.exists(filepath):
-            with open(filepath, mode='r', encoding='utf-8') as f:
-                lines = csv.reader(f)  # #此处读取到的数据是将每行数据当做列表返回的
-                for line in lines:
-                    data.append(line)
-            return data
-        else:
-            print('filepath is wrong：{}'.format(filepath))
-            return []
+
 
     def grab_img_baidu(self, _url, _headers=None):
         if _headers == None:
@@ -120,6 +118,7 @@ class BaiduStreetDownload():
             'mYL7zDrHfcb0ziXBqhBOcqFefrbRUnuq'
         )
         res = self.openUrl(url).decode()
+        # print(url)
         temp = json.loads(res)
         bd09mc_x = 0
         bd09mc_y = 0
@@ -130,30 +129,34 @@ class BaiduStreetDownload():
         return bd09mc_x, bd09mc_y
 
     def downloadpic(self, i):
-        self.count += 1
-        if self.count % 1000 == 0:
-            self.get_proxy_list()
-        print('Processing No. {} point...'.format(i + 1))
-        # gcj_x, gcj_y, wgs_x, wgs_y = data[i][0], data[i][1], data[i][2], data[i][3]
-        wgs_x, wgs_y = self.data[i][15], self.data[i][16]
 
-        try:
-            bd09mc_x, bd09mc_y = self.wgs2bd09mc(wgs_x, wgs_y)
-        except Exception as e:
-            print(str(e))  # 抛出异常的原因
-            return None
+        # if self.count % 2000 == 0:
+        #     self.get_proxy_list()
+        print('Processing No. {} point...'.format(self.begin + i + 1))
+        # gcj_x, gcj_y, wgs_x, wgs_y = data[i][0], data[i][1], data[i][2], data[i][3]
+        wgs_x, wgs_y = round(self.data.iloc[i, 0], 6), round(self.data.iloc[i, 1], 6)
+
         flag = True
 
-        flag = flag and "%s_%s.png" % (wgs_x, wgs_y) in self.filenames_exist
+        flag = flag and "%s_%s.png" % (wgs_x, wgs_y) in global_filenames_exist
 
         # If all four files exist, skip
         if (flag):
             return None
+
+        try:
+            self.count += 1
+            bd09mc_x, bd09mc_y = self.wgs2bd09mc(str(wgs_x), str(wgs_y))
+            print(bd09mc_x)
+        except Exception as e:
+            print(str(e))  # 抛出异常的原因
+            return None
+
         svid = self.getPanoId(bd09mc_x, bd09mc_y)
         if svid is None:
             return None
         # for h in range(len(self.headings)):
-        save_fn = os.path.join(self.root, self.dir) + r'\%s_%s.png' % (str(wgs_x).strip(), str(wgs_y).strip())
+        save_fn = self.dir + r'\%s_%s.png' % (str(wgs_x).strip(), str(wgs_y).strip())
 
         url = 'https://mapsv0.bdimg.com/?qt=pdata&sid={}&pos=0_0&z=1'.format(
             svid #, self.headings[h]
@@ -168,6 +171,7 @@ class BaiduStreetDownload():
         if img != None:
             with open(save_fn, "wb") as f:
                 f.write(img)
+            print("Download No. {} point Successfully".format(self.begin + i + 1))
 
 
         # 保存失败的图片
@@ -182,14 +186,22 @@ class BaiduStreetDownload():
         self.session.proxies = self.proxyAddr_list[self.count % self.num]
 
     def download(self):
-        pool = ThreadPoolExecutor(max_workers = 50)
-        for i in range(len(self.data)):
-        # for i in range(100):
-            pool.submit(self.downloadpic, i)
+        pool = ThreadPoolExecutor(max_workers = 75)
+        # pool.submit(self.downloadpic, 1)
+        temp_all_tasks = [pool.submit(self.downloadpic, i) for i in range(len(self.data))]
+        wait(temp_all_tasks, return_when=ALL_COMPLETED)
+
             # break
 
 if __name__ == "__main__":
-
-    # while count < 210:
-    D = BaiduStreetDownload()
-    D.download()
+    global_read_fn = r'.\dir\sampling_points_wgs_50m.csv'
+    global_filenames_exist = glob.glob1(r".\images", "*.png")
+    global_data = read_csv(global_read_fn).iloc[155000:, 3:]
+    max_len = len(global_data)
+    for i in range(0, max_len, 5000):
+        j = i + 5000
+        if j > max_len - 1:
+            j = max_len - 1
+        D = BaiduStreetDownload(i, j)
+        D.download()
+        time.sleep(60)
